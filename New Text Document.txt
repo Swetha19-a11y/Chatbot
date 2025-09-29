@@ -1,0 +1,181 @@
+import streamlit as st
+import pandas as pd
+import time
+
+# --- Page Configuration ---
+st.set_page_config(
+    page_title="AI Virtual Assistant for INGRES",
+    page_icon="💧",
+    layout="wide"
+)
+
+# --- Language Definitions ---
+LANGUAGES = {
+    "en": "English",
+    "hi": "हिन्दी (Hindi)",
+    "ta": "தமிழ் (Tamil)",
+    "te": "తెలుగు (Telugu)",
+    "bn": "বাংলা (Bangla)",
+    "mr": "मરાठी (Marathi)",
+    "gu": "ગુજરાતી (Gujarati)",
+    "kn": "ಕನ್ನಡ (Kannada)",
+    "ml": "മലയാളം (Malayalam)",
+    "pa": "ਪੰਜਾਬੀ (Punjabi)",
+    "or": "ଓଡ଼ିଆ (Odia)"
+}
+
+# --- Translations & Mock Database ---
+MOCK_DATA = {
+    'en': {
+        'page_title': "AI Virtual Assistant for INGRES",
+        'chat_title': 'Groundwater Insights ChatBOT',
+        'suggestions_label': 'Try these examples:',
+        'placeholder': 'Ask about groundwater resources...',
+        'welcome': "Hello! I am your AI assistant for INGRES. How can I help you access India's groundwater data today?",
+        'error': "I'm sorry, I couldn't find information for that specific query. Please try again.",
+        'viz_title': "Data Visualizations",
+        'viz_placeholder': "Interactive charts and maps will appear here.",
+        'suggestion_1': "Status in Pune, Maharashtra",
+        'suggestion_2': "Compare 2023 vs 2024 in Tamil Nadu",
+        'suggestion_3': "Map of over-exploited zones",
+        'responses': [
+            {"keywords": ["status", "pune"], "response": "The groundwater status for Pune is 'Over-exploited'. The LGD is 125%.", "viz": {"type": "bar", "data": pd.DataFrame({"Category": ['Annual Recharge', 'Annual Extraction'], "Value (BCM)": [1.2, 1.5]})}},
+            {"keywords": ["map", "over-exploited"], "response": "Displaying a map of over-exploited zones in North-West India.", "viz": {"type": "map", "data": pd.DataFrame({'lat': [30.90, 28.45, 26.91], 'lon': [75.85, 77.02, 75.78]})}},
+            {"keywords": ["compare", "tamil nadu"], "response": "Here is a comparison of the total extractable groundwater resources in Tamil Nadu for recent years.", "viz": {"type": "line", "data": pd.DataFrame({"Year": ['2020', '2021', '2022', '2023', '2024'], "Resources (BCM)": [22.5, 22.1, 22.3, 21.8, 21.5]})}}
+        ]
+    },
+    'hi': {'page_title': "INGRES के लिए AI वर्चुअल असिस्टेंट", 'chat_title': 'भूजल अंतर्दृष्टि चैटबॉट', 'suggestions_label': 'इन उदाहरणों को आजमाएं:', 'placeholder': 'भूजल संसाधनों के बारे में पूछें...', 'welcome': "नमस्ते! मैं INGRES के लिए आपका AI सहायक हूँ।", 'error': "मुझे खेद है, मुझे उस प्रश्न के लिए जानकारी नहीं मिली।", 'viz_title': "डेटा विज़ुअलाइज़ेशन", 'viz_placeholder': "चार्ट और नक्शे यहां दिखाई देंगे।", 'suggestion_1': "पुणे, महाराष्ट्र में स्थिति", 'suggestion_2': "तमिलनाडु में तुलना करें", 'suggestion_3': "अति-शोषित क्षेत्रों का नक्शा", 'responses': [{"keywords": ["स्थिति", "पुणे"], "response": "पुणे में भूजल की स्थिति 'अति-शोषित' है। LGD 125% है।", "viz": {"type": "bar", "data": pd.DataFrame({"वर्ग": ['वार्षिक पुनर्भरण', 'वार्षिक निकासी'], "मान (BCM)": [1.2, 1.5]})}}]},
+    'ta': {'page_title': "INGRES-க்கான AI மெய்நிகர் உதவியாளர்", 'welcome': "வணக்கம்! நான் INGRES-க்கான உங்கள் AI உதவியாளர்.", 'responses': []},
+    'te': {'page_title': "INGRES కోసం AI వర్చువల్ అసిస్టెంట్", 'welcome': "నమస్కారం! నేను INGRES కోసం మీ AI సహాయకుడిని.", 'responses': []},
+    'bn': {'page_title': "INGRES-এর জন্য AI ভার্চুয়াল সহকারী", 'welcome': "নমস্কার! আমি INGRES-এর জন্য আপনার AI সহকারী।", 'responses': []},
+    'mr': {'page_title': "INGRES साठी AI व्हर्च्युअल असिस्टंट", 'welcome': "नमस्कार! मी INGRES साठी तुमचा AI सहाय्यक आहे.", 'responses': []},
+    'gu': {'page_title': "INGRES માટે AI વર્ચ્યુઅલ સહાયક", 'welcome': "નમસ્તે! હું INGRES માટે તમારો AI સહાયક છું.", 'responses': []},
+    'kn': {'page_title': "INGRES ಗಾಗಿ AI ವರ್ಚುವಲ್ ಸಹಾಯಕ", 'welcome': "ನಮಸ್ಕಾರ! ನಾನು INGRES ಗಾಗಿ ನಿಮ್ಮ AI ಸಹಾಯಕ.", 'responses': []},
+    'ml': {'page_title': "INGRES-നായുള്ള AI വെർച്വൽ അസിസ്റ്റന്റ്", 'welcome': "നമസ്കാരം! ഞാൻ INGRES-നായുള്ള നിങ്ങളുടെ AI അസിസ്റ്റന്റാണ്.", 'responses': []},
+    'pa': {'page_title': "INGRES ਲਈ AI ਵਰਚੁਅਲ ਅਸਿਸਟੈਂਟ", 'welcome': "ਸਤ ਸ੍ਰੀ ਅਕਾਲ! ਮੈਂ INGRES ਲਈ ਤੁਹਾਡਾ AI ਸਹਾਇਕ ਹਾਂ।", 'responses': []},
+    'or': {'page_title': "INGRES ପାଇଁ AI ଭର୍ଚୁଆଲ୍ ଆସିଷ୍ଟାଣ୍ଟ", 'welcome': "ନମସ୍କାର! ମୁଁ INGRES ପାଇଁ ଆପଣଙ୍କର AI ସହାୟକ।", 'responses': []}
+}
+
+for lang_code, lang_data in MOCK_DATA.items():
+    if lang_code != 'en':
+        for key, value in MOCK_DATA['en'].items():
+            if key not in lang_data:
+                lang_data[key] = value
+
+if 'messages' not in st.session_state: st.session_state.messages = []
+if 'lang' not in st.session_state: st.session_state.lang = 'en'
+if 'current_viz' not in st.session_state: st.session_state.current_viz = None
+
+def t(key):
+    return MOCK_DATA[st.session_state.lang].get(key, MOCK_DATA['en'].get(key, key))
+
+# --- FEATURE: Onboarding Tutorial ---
+if 'has_seen_tutorial' not in st.session_state:
+    with st.expander("👋 Welcome! Here's how to use the Chatbot:", expanded=True):
+        st.info("1. **Ask a question** in the text box at the bottom.")
+        st.info("2. **Use the examples** below the chat for ideas.")
+        st.info("3. **Interact with charts and maps** that appear on the right.")
+        if st.button("Got it!"):
+            st.session_state.has_seen_tutorial = True
+            st.rerun()
+
+# --- Header ---
+col1, col2 = st.columns([3, 1])
+with col1:
+    st.markdown(f"""<h1 style="margin: 0; display: flex; align-items: center; gap: 15px;">
+        <img src="https://placehold.co/60x60/3B82F6/FFFFFF?text=INGRES" style="border-radius: 50%;">
+        {t('page_title')}</h1>""", unsafe_allow_html=True)
+with col2:
+    lang_options = list(LANGUAGES.values())
+    current_lang_name = LANGUAGES[st.session_state.lang]
+    selected_lang_index = lang_options.index(current_lang_name)
+    lang_choice = st.selectbox("Language / भाषा", lang_options, index=selected_lang_index, label_visibility="collapsed")
+    new_lang_code = next((code for code, name in LANGUAGES.items() if name == lang_choice), 'en')
+    if new_lang_code != st.session_state.lang:
+        st.session_state.lang = new_lang_code
+        st.session_state.messages = []
+        st.session_state.current_viz = None
+        st.rerun()
+st.markdown("<hr>", unsafe_allow_html=True)
+
+# --- Main Content ---
+chat_col, viz_col = st.columns(2)
+with chat_col:
+    st.header(t('chat_title'))
+    chat_container = st.container(height=400, border=True)
+    with chat_container:
+        if not st.session_state.messages:
+            with st.chat_message("assistant"):
+                st.write(t('welcome'))
+        
+        for i, message in enumerate(st.session_state.messages):
+            with st.chat_message(message["role"]):
+                st.markdown(message["content"])
+                
+                # --- FEATURE: Feedback Buttons ---
+                # Show feedback buttons only for the last assistant message
+                if message["role"] == "assistant" and i == len(st.session_state.messages) - 1:
+                    feedback_cols = st.columns([1, 1, 8])
+                    if feedback_cols[0].button("👍", key=f"helpful_{i}"):
+                        st.toast("Thanks for your feedback!")
+                        # In a real app, you would log this feedback to a database
+                    if feedback_cols[1].button("👎", key=f"unhelpful_{i}"):
+                        st.toast("Thanks! We'll use this to improve.")
+
+    st.write(t('suggestions_label'))
+    s_col1, s_col2, s_col3 = st.columns(3)
+    suggestion_buttons = {s_col1: t('suggestion_1'), s_col2: t('suggestion_2'), s_col3: t('suggestion_3')}
+    user_prompt_suggestion = None
+    for col, text in suggestion_buttons.items():
+        if col.button(text, use_container_width=True):
+            user_prompt_suggestion = text
+
+with viz_col:
+    viz_area = st.container(border=True)
+    with viz_area:
+        if st.session_state.current_viz is None:
+            st.markdown(f"""<div style="text-align: center; padding: 5rem 1rem;">
+                <span style="font-size: 4rem;">📊</span><h3>{t('viz_title')}</h3><p>{t('viz_placeholder')}</p>
+                </div>""", unsafe_allow_html=True)
+        else:
+            viz_type = st.session_state.current_viz['type']
+            viz_data = st.session_state.current_viz['data']
+            if viz_type == 'bar':
+                st.bar_chart(viz_data, x='Category', y='Value (BCM)')
+            elif viz_type == 'line':
+                st.line_chart(viz_data, x="Year", y="Resources (BCM)")
+            elif viz_type == 'map':
+                st.map(viz_data, zoom=5, use_container_width=True)
+            
+            # --- FEATURE: Download Button ---
+            if isinstance(viz_data, pd.DataFrame):
+                csv = viz_data.to_csv(index=False).encode('utf-8')
+                st.download_button(
+                   label="📄 Download Data as CSV",
+                   data=csv,
+                   file_name='ingres_data.csv',
+                   mime='text/csv',
+                   use_container_width=True,
+                   key='download_button'
+                )
+
+def get_bot_response(query):
+    query = query.lower()
+    possible_responses = t('responses')
+    if not possible_responses: return t('error'), None
+    for item in possible_responses:
+        if all(keyword.lower() in query for keyword in item["keywords"]):
+            return item["response"], item.get("viz")
+    return t('error'), None
+
+prompt = st.chat_input(t('placeholder')) or user_prompt_suggestion
+
+if prompt:
+    st.session_state.messages.append({"role": "user", "content": prompt})
+    response_text, viz_data = get_bot_response(prompt)
+    st.session_state.current_viz = viz_data
+    st.session_state.messages.append({"role": "assistant", "content": response_text})
+    st.rerun()
+
+st.markdown("<hr style='margin-top: 2rem;'>", unsafe_allow_html=True)
+st.markdown("<p style='text-align: center; color: grey;'>© 2025 | Data Source: INGRES Portal</p>", unsafe_allow_html=True)
